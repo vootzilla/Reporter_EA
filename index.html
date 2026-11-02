@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MT5 Portfolio Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        .drag-handle { cursor: grab; touch-action: none; }
+        .drag-handle:active { cursor: grabbing; }
+        .card-enter { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen font-sans antialiased p-4 md:p-8">
+
+<div id="auth-view" class="max-w-md mx-auto mt-20 bg-slate-900 p-6 rounded-xl shadow-lg border border-slate-800">
+    <h2 class="text-2xl font-bold mb-6 text-white">Dashboard Login</h2>
+    <form id="auth-form" class="space-y-4">
+        <div>
+            <label class="block text-sm font-medium text-slate-400 mb-1">Supabase Project URL</label>
+            <input type="url" id="supabaseUrl" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-slate-400 mb-1">Supabase Anon Key</label>
+            <input type="password" id="anonKey" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-slate-400 mb-1">Owner Email</label>
+            <input type="email" id="ownerEmail" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-slate-400 mb-1">Sync Key</label>
+            <input type="password" id="syncKey" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+        </div>
+        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+            Connect Dashboard
+        </button>
+    </form>
+</div>
+
+<div id="dashboard-view" class="hidden max-w-6xl mx-auto">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+        <h1 class="text-3xl font-bold text-white">MT5 Portfolio</h1>
+        <button id="logout-btn" class="text-sm bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg transition-colors border border-slate-700">Logout</button>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div class="bg-slate-900 p-5 rounded-xl border border-slate-800">
+            <h3 class="text-slate-400 text-sm font-medium">Total Equity & Balance</h3>
+            <div class="mt-2 flex items-baseline gap-2">
+                <span id="total-equity" class="text-2xl font-bold text-white">$0.00</span>
+                <span class="text-sm text-slate-500">Equity</span>
+            </div>
+            <div class="mt-1 flex items-baseline gap-2">
+                <span id="total-balance" class="text-xl text-slate-300">$0.00</span>
+                <span class="text-sm text-slate-500">Balance</span>
+            </div>
+            <div class="mt-3 text-xs text-slate-500"><span id="total-ports" class="font-bold text-slate-300">0</span> active accounts</div>
+        </div>
+
+        <div class="bg-slate-900 p-5 rounded-xl border border-slate-800">
+            <h3 class="text-slate-400 text-sm font-medium">Floating P/L & Drawdown</h3>
+            <div class="mt-2 flex items-baseline gap-2">
+                <span id="net-floating-pnl" class="text-2xl font-bold text-white">$0.00</span>
+                <span class="text-sm text-slate-500">Net P/L</span>
+            </div>
+            <div class="mt-1 flex items-baseline gap-2">
+                <span id="portfolio-dd" class="text-xl text-slate-300">0.00%</span>
+                <span class="text-sm text-slate-500">Portfolio Floating DD</span>
+            </div>
+        </div>
+
+        <div class="bg-slate-900 p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <h3 class="text-slate-400 text-sm font-medium mb-2">Total Realized Profit</h3>
+            <div class="flex justify-between items-end gap-2">
+                <div>
+                    <div class="text-xs text-slate-500 mb-1">Today</div>
+                    <div id="profit-today" class="text-base font-semibold text-white">$0.00</div>
+                    <div id="profit-today-pct" class="text-xs text-slate-400">0.00%</div>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-500 mb-1">Week</div>
+                    <div id="profit-week" class="text-base font-semibold text-white">$0.00</div>
+                    <div id="profit-week-pct" class="text-xs text-slate-400">0.00%</div>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-500 mb-1">Month</div>
+                    <div id="profit-month" class="text-base font-semibold text-white">$0.00</div>
+                    <div id="profit-month-pct" class="text-xs text-slate-400">0.00%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+        <h2 class="text-xl font-semibold text-white">Accounts</h2>
+        <select id="sort-mode" class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-auto cursor-pointer">
+            <option value="custom">Custom Order (Drag & Drop)</option>
+            <option value="dd">Worst Drawdown (%)</option>
+            <option value="equity">Highest Equity ($)</option>
+            <option value="profit">Profit Today ($)</option>
+        </select>
+    </div>
+
+    <!-- Portfolio List -->
+    <div id="portfolio-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
+        <!-- Cards injected here -->
+    </div>
+</div>
+
+<script>
+    // State
+    let credentials = {
+        supabaseUrl: '',
+        anonKey: '',
+        ownerEmail: '',
+        syncKey: ''
+    };
+    let isDragging = false;
+    let sortMode = 'custom'; // custom, dd, equity, profit
+    let portfolioData = [];
+    let sortableInstance = null;
+    let pollInterval = null;
+
+    // Initialization
+    document.addEventListener('DOMContentLoaded', () => {
+        loadCredentials();
+        if (credentials.supabaseUrl && credentials.anonKey && credentials.ownerEmail && credentials.syncKey) {
+            showDashboard();
+        } else {
+            showAuth();
+        }
+
+        document.getElementById('auth-form').addEventListener('submit', handleAuth);
+        document.getElementById('logout-btn').addEventListener('click', handleLogout);
+        document.getElementById('sort-mode').addEventListener('change', handleSortModeChange);
+    });
+
+    function loadCredentials() {
+        credentials.supabaseUrl = localStorage.getItem('supabaseUrl') || '';
+        credentials.anonKey = localStorage.getItem('anonKey') || '';
+        credentials.ownerEmail = localStorage.getItem('ownerEmail') || '';
+        credentials.syncKey = localStorage.getItem('syncKey') || '';
+    }
+
+    function saveCredentials() {
+        localStorage.setItem('supabaseUrl', credentials.supabaseUrl);
+        localStorage.setItem('anonKey', credentials.anonKey);
+        localStorage.setItem('ownerEmail', credentials.ownerEmail);
+        localStorage.setItem('syncKey', credentials.syncKey);
+    }
+
+    function handleAuth(e) {
+        e.preventDefault();
+        credentials.supabaseUrl = document.getElementById('supabaseUrl').value.trim();
+        // Remove trailing slash if present
+        if(credentials.supabaseUrl.endsWith('/')) credentials.supabaseUrl = credentials.supabaseUrl.slice(0, -1);
+
+        credentials.anonKey = document.getElementById('anonKey').value.trim();
+        credentials.ownerEmail = document.getElementById('ownerEmail').value.trim();
+        credentials.syncKey = document.getElementById('syncKey').value.trim();
+        saveCredentials();
+        showDashboard();
+    }
+
+    function handleLogout() {
+        localStorage.removeItem('supabaseUrl');
+        localStorage.removeItem('anonKey');
+        localStorage.removeItem('ownerEmail');
+        localStorage.removeItem('syncKey');
+        if (pollInterval) clearInterval(pollInterval);
+        showAuth();
+    }
+
+    function showAuth() {
+        document.getElementById('auth-view').classList.remove('hidden');
+        document.getElementById('dashboard-view').classList.add('hidden');
+        document.getElementById('supabaseUrl').value = credentials.supabaseUrl;
+        document.getElementById('anonKey').value = credentials.anonKey;
+        document.getElementById('ownerEmail').value = credentials.ownerEmail;
+        document.getElementById('syncKey').value = credentials.syncKey;
+    }
+
+    function showDashboard() {
+        document.getElementById('auth-view').classList.add('hidden');
+        document.getElementById('dashboard-view').classList.remove('hidden');
+        initSortable();
+        fetchData(); // Initial fetch
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(fetchData, 5000);
+    }
+
+    // Data Fetching
+    async function fetchData() {
+        if (isDragging) return; // Skip update if dragging
+
+        const url = `${credentials.supabaseUrl}/rest/v1/rpc/get_my_dashboard`;
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'apikey': credentials.anonKey,
+                    'Authorization': `Bearer ${credentials.anonKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    p_email: credentials.ownerEmail,
+                    p_sync_key: credentials.syncKey
+                })
+            });
+
+            if (!response.ok) {
+                console.error('Failed to fetch data:', await response.text());
+                // Handle unauthorized nicely
+                if(response.status === 401 || response.status === 403) {
+                    alert('Authentication failed. Please check your credentials.');
+                    handleLogout();
+                }
+                return;
+            }
+
+            const data = await response.json();
+            portfolioData = data || [];
+            updateUI();
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        }
+    }
+
+    // Data Processing & Sorting
+    function getCustomOrderKey() {
+        return `mt5_custom_order_${credentials.ownerEmail}`;
+    }
+
+    function getSavedCustomOrder() {
+        try {
+            const saved = localStorage.getItem(getCustomOrderKey());
+            return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveCustomOrder(orderArray) {
+        localStorage.setItem(getCustomOrderKey(), JSON.stringify(orderArray));
+    }
+
+    function handleSortModeChange(e) {
+        sortMode = e.target.value;
+        sortableInstance.option('disabled', sortMode !== 'custom');
+        updateUI();
+    }
+
+    function sortData() {
+        if (portfolioData.length === 0) return [];
+
+        let sortedData = [...portfolioData];
+
+        if (sortMode === 'custom') {
+            const savedOrder = getSavedCustomOrder();
+
+            // Ensure new accounts are added to saved order
+            let currentIds = sortedData.map(d => `${d.account_login}__${d.broker_server}`);
+            let updatedOrder = [...savedOrder];
+
+            currentIds.forEach(id => {
+                if (!updatedOrder.includes(id)) {
+                    updatedOrder.push(id);
+                }
+            });
+
+            // Save the possibly updated order
+            if (updatedOrder.length !== savedOrder.length) {
+                saveCustomOrder(updatedOrder);
+            }
+
+            sortedData.sort((a, b) => {
+                const idA = `${a.account_login}__${a.broker_server}`;
+                const idB = `${b.account_login}__${b.broker_server}`;
+                let indexA = updatedOrder.indexOf(idA);
+                let indexB = updatedOrder.indexOf(idB);
+                // Put items not in order at the end
+                if (indexA === -1) indexA = Number.MAX_SAFE_INTEGER;
+                if (indexB === -1) indexB = Number.MAX_SAFE_INTEGER;
+                return indexA - indexB;
+            });
+
+        } else if (sortMode === 'dd') {
+            // Worst drawdown ascending (most negative first)
+            sortedData.sort((a, b) => (a.floating_dd_pct || 0) - (b.floating_dd_pct || 0));
+        } else if (sortMode === 'equity') {
+            // Highest equity descending
+            sortedData.sort((a, b) => (b.equity_usd || 0) - (a.equity_usd || 0));
+        } else if (sortMode === 'profit') {
+            // Profit today descending
+            sortedData.sort((a, b) => (b.profit_day_usd || 0) - (a.profit_day_usd || 0));
+        }
+
+        return sortedData;
+    }
+
+    // UI Updating
+    function updateUI() {
+        updateSummaryCards();
+        renderPortfolioList();
+    }
+
+    function formatMoney(amount) {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
+    }
+
+    function formatPercent(pct) {
+        return (pct || 0).toFixed(2) + '%';
+    }
+
+    function updateSummaryCards() {
+        let totalEquity = 0;
+        let totalBalance = 0;
+        let netFloatingPnl = 0;
+        let profitToday = 0;
+        let profitWeek = 0;
+        let profitMonth = 0;
+        let activeCount = portfolioData.length;
+
+        portfolioData.forEach(d => {
+            totalEquity += d.equity_usd || 0;
+            totalBalance += d.balance_usd || 0;
+            netFloatingPnl += d.floating_pnl_usd || 0;
+            profitToday += d.profit_day_usd || 0;
+            profitWeek += d.profit_week_usd || 0;
+            profitMonth += d.profit_month_usd || 0;
+        });
+
+        let portfolioDd = totalBalance > 0 ? ((totalEquity - totalBalance) / totalBalance) * 100 : 0;
+
+        document.getElementById('total-equity').innerText = formatMoney(totalEquity);
+        document.getElementById('total-balance').innerText = formatMoney(totalBalance);
+        document.getElementById('total-ports').innerText = activeCount;
+
+        const pnlEl = document.getElementById('net-floating-pnl');
+        pnlEl.innerText = formatMoney(netFloatingPnl);
+        pnlEl.className = `text-2xl font-bold ${netFloatingPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+        const ddEl = document.getElementById('portfolio-dd');
+        ddEl.innerText = formatPercent(portfolioDd);
+        ddEl.className = `text-xl ${portfolioDd < 0 ? 'text-rose-400' : 'text-slate-300'}`;
+
+        document.getElementById('profit-today').innerText = formatMoney(profitToday);
+        document.getElementById('profit-today-pct').innerText = totalBalance > 0 ? formatPercent((profitToday / totalBalance) * 100) : '0.00%';
+        document.getElementById('profit-today').className = `text-base font-semibold ${profitToday >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+        document.getElementById('profit-week').innerText = formatMoney(profitWeek);
+        document.getElementById('profit-week-pct').innerText = totalBalance > 0 ? formatPercent((profitWeek / totalBalance) * 100) : '0.00%';
+        document.getElementById('profit-week').className = `text-base font-semibold ${profitWeek >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+        document.getElementById('profit-month').innerText = formatMoney(profitMonth);
+        document.getElementById('profit-month-pct').innerText = totalBalance > 0 ? formatPercent((profitMonth / totalBalance) * 100) : '0.00%';
+        document.getElementById('profit-month').className = `text-base font-semibold ${profitMonth >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+    }
+
+    function timeAgo(updatedAt) {
+        if (!updatedAt) return { seconds: Infinity, text: 'Never' };
+        const date = new Date(updatedAt);
+        const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+
+        let text = '';
+        if (seconds < 60) text = `${seconds}s ago`;
+        else if (seconds < 3600) text = `${Math.floor(seconds/60)}m ago`;
+        else if (seconds < 86400) text = `${Math.floor(seconds/3600)}h ago`;
+        else text = `${Math.floor(seconds/86400)}d ago`;
+
+        return { seconds, text };
+    }
+
+    function renderPortfolioList() {
+        const listContainer = document.getElementById('portfolio-list');
+        const sortedData = sortData();
+
+        listContainer.innerHTML = '';
+
+        sortedData.forEach(acc => {
+            const id = `${acc.account_login}__${acc.broker_server}`;
+            const status = timeAgo(acc.updated_at);
+            const isOffline = status.seconds > 120;
+
+            const card = document.createElement('div');
+            card.className = 'bg-slate-900 rounded-xl border border-slate-800 overflow-hidden flex flex-col card-enter';
+            card.dataset.id = id;
+
+            // Card Header
+            let statusHtml = isOffline
+                ? `<span class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-rose-400 bg-rose-400/10 px-2 py-1 rounded border border-rose-400/20"><div class="w-1.5 h-1.5 rounded-full bg-rose-500"></div>OFFLINE - ${status.text}</span>`
+                : `<span class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded border border-emerald-400/20"><div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>LIVE</span>`;
+
+            let isCentHtml = acc.is_cent
+                ? `<span class="text-[9px] font-bold bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded border border-amber-500/30">USC->USD</span>`
+                : '';
+
+            const ddColor = (acc.floating_dd_pct || 0) < 0 ? 'text-rose-400' : 'text-slate-300';
+            const pnlColor = (acc.floating_pnl_usd || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400';
+
+            card.innerHTML = `
+                <div class="flex items-center justify-between p-3.5 border-b border-slate-800 bg-slate-800/20">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="drag-handle text-slate-500 hover:text-white text-xl select-none" ${sortMode !== 'custom' ? 'style="display:none;"' : ''}>⠿</div>
+                        <div class="truncate">
+                            <div class="font-bold text-white flex items-center gap-2 truncate text-sm">
+                                ${acc.port_alias || acc.account_login}
+                                ${isCentHtml}
+                            </div>
+                            <div class="text-[11px] text-slate-500 truncate mt-0.5">${acc.account_login} • ${acc.broker_server}</div>
+                        </div>
+                    </div>
+                    <div>${statusHtml}</div>
+                </div>
+                <div class="p-4 grid grid-cols-2 gap-4">
+                    <div>
+                        <div class="text-[11px] text-slate-500 uppercase tracking-wider mb-0.5">Equity</div>
+                        <div class="font-semibold text-white text-sm">${formatMoney(acc.equity_usd)}</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-slate-500 uppercase tracking-wider mb-0.5">Balance</div>
+                        <div class="font-semibold text-slate-300 text-sm">${formatMoney(acc.balance_usd)}</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-slate-500 uppercase tracking-wider mb-0.5">Floating P/L</div>
+                        <div class="font-semibold ${pnlColor} text-sm">${formatMoney(acc.floating_pnl_usd)}</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-slate-500 uppercase tracking-wider mb-0.5">Drawdown</div>
+                        <div class="font-semibold ${ddColor} text-sm">${formatPercent(acc.floating_dd_pct)}</div>
+                    </div>
+                    <div class="col-span-2 grid grid-cols-3 gap-2 border-t border-slate-800 pt-3 mt-1 bg-slate-900">
+                        <div>
+                            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Day</div>
+                            <div class="text-xs font-medium ${acc.profit_day_usd >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${formatMoney(acc.profit_day_usd)}</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Week</div>
+                            <div class="text-xs font-medium ${acc.profit_week_usd >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${formatMoney(acc.profit_week_usd)}</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Month</div>
+                            <div class="text-xs font-medium ${acc.profit_month_usd >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${formatMoney(acc.profit_month_usd)}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="px-4 py-2.5 bg-slate-800/30 border-t border-slate-800 flex justify-between items-center">
+                    <div class="text-[11px] text-slate-500">Open Pos: <span class="text-slate-300 font-medium">${acc.open_positions || 0}</span></div>
+                    <button onclick="deleteAccount('${acc.account_login}', '${acc.broker_server}')" class="text-[11px] text-rose-400 hover:text-rose-300 hover:underline transition-colors font-medium">Remove Account</button>
+                </div>
+            `;
+            listContainer.appendChild(card);
+        });
+    }
+
+    // Delete Account (exposed globally for inline onclick handler)
+    window.deleteAccount = async function(login, server) {
+        if (!confirm(`Are you sure you want to remove account ${login} from dashboard?`)) return;
+
+        const url = `${credentials.supabaseUrl}/rest/v1/rpc/delete_mt5_account`;
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'apikey': credentials.anonKey,
+                    'Authorization': `Bearer ${credentials.anonKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    p_email: credentials.ownerEmail,
+                    p_sync_key: credentials.syncKey,
+                    p_login: parseInt(login),
+                    p_server: server
+                })
+            });
+
+            if (response.ok) {
+                // Remove from saved order immediately
+                const idToRemove = `${login}__${server}`;
+                const savedOrder = getSavedCustomOrder();
+                const updatedOrder = savedOrder.filter(id => id !== idToRemove);
+                saveCustomOrder(updatedOrder);
+
+                // Re-fetch immediately to update UI
+                fetchData();
+            } else {
+                const msg = await response.text();
+                alert(`Failed to delete account: ${msg}`);
+            }
+        } catch (error) {
+            console.error('Error deleting account:', error);
+            alert('Error deleting account.');
+        }
+    };
+
+    // SortableJS Init
+    function initSortable() {
+        const listContainer = document.getElementById('portfolio-list');
+        if (sortableInstance) {
+            sortableInstance.destroy();
+        }
+        sortableInstance = new Sortable(listContainer, {
+            animation: 200,
+            easing: "cubic-bezier(1, 0, 0, 1)",
+            handle: '.drag-handle',
+            ghostClass: 'opacity-40',
+            chosenClass: 'ring-2',
+            onStart: function (evt) {
+                isDragging = true;
+                evt.item.classList.add('ring-indigo-500');
+            },
+            onEnd: function (evt) {
+                isDragging = false;
+                evt.item.classList.remove('ring-indigo-500');
+
+                // Save new order
+                const itemEls = listContainer.querySelectorAll('[data-id]');
+                const newOrder = Array.from(itemEls).map(el => el.dataset.id);
+                saveCustomOrder(newOrder);
+            }
+        });
+
+        sortableInstance.option('disabled', sortMode !== 'custom');
+    }
+</script>
+</body>
+</html>
